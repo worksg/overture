@@ -51,7 +51,6 @@ func (c *RemoteClient) getEDNSClientSubnetIP() {
 		if c.dnsUpstream.EDNSClientSubnet.ExternalIP != "" &&
 			!common.IsIPMatchList(net.ParseIP(c.dnsUpstream.EDNSClientSubnet.ExternalIP), common.ReservedIPNetworkList, false, "") {
 			c.ednsClientSubnetIP = c.dnsUpstream.EDNSClientSubnet.ExternalIP
-			return
 		}
 	case "disable":
 	}
@@ -121,6 +120,14 @@ func (c *RemoteClient) Exchange(isLog bool) *dns.Msg {
 
 	dc := &dns.Conn{Conn: conn}
 	defer dc.Close()
+
+	if c.ednsClientSubnetIP != "" {
+		if opt := c.questionMessage.IsEdns0(); opt != nil && opt.UDPSize() >= dns.MinMsgSize {
+			//log.Debugf("Modify UDPSize upstream %s: %d => %d", c.dnsUpstream.Name, dc.UDPSize, opt.UDPSize())
+			dc.UDPSize = opt.UDPSize()
+		}
+	}
+
 	err := dc.WriteMsg(c.questionMessage)
 	if err != nil {
 		log.Warnf("%s Fail: Send question message failed", c.dnsUpstream.Name)
