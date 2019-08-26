@@ -27,7 +27,7 @@ func IsIPMatchList(ip net.IP, ipNetList []*net.IPNet, isLog bool, name string) b
 			}
 		}
 	} else {
-		log.Debug("IP network list is nil, not checking")
+		log.Debugf("IP network %s list is nil, not checking", name)
 	}
 
 	return false

@@ -50,13 +50,30 @@ func (d *Dispatcher) Exchange(query *dns.Msg, inboundIP string) *dns.Msg {
 		}
 	}
 
-	if d.OnlyPrimaryDNS || d.isSelectDomain(PrimaryClientBundle, d.DomainPrimaryList) {
+	if d.OnlyPrimaryDNS {
 		ActiveClientBundle = PrimaryClientBundle
 		return ActiveClientBundle.Exchange(true, true)
 	}
 
-	if ok := d.isExchangeForIPv6(query) || d.isSelectDomain(AlternativeClientBundle, d.DomainAlternativeList); ok {
+	if ok := d.isExchangeForIPv6(query); ok {
 		ActiveClientBundle = AlternativeClientBundle
+		return ActiveClientBundle.Exchange(true, true)
+	}
+
+	var matchPrimaryDomain = d.isSelectDomain(PrimaryClientBundle, d.DomainPrimaryList)
+	var matchAlternativeDomain = d.isSelectDomain(AlternativeClientBundle, d.DomainAlternativeList)
+
+	if matchPrimaryDomain && matchAlternativeDomain {
+		log.Debugf("Finally use %s DNS", AlternativeClientBundle.Name)
+		ActiveClientBundle = AlternativeClientBundle
+		return ActiveClientBundle.Exchange(true, true)
+	} else if matchAlternativeDomain {
+		log.Debugf("Finally use %s DNS", AlternativeClientBundle.Name)
+		ActiveClientBundle = AlternativeClientBundle
+		return ActiveClientBundle.Exchange(true, true)
+	} else if matchPrimaryDomain {
+		log.Debugf("Finally use %s DNS", PrimaryClientBundle.Name)
+		ActiveClientBundle = PrimaryClientBundle
 		return ActiveClientBundle.Exchange(true, true)
 	}
 
@@ -91,10 +108,8 @@ func (d *Dispatcher) isSelectDomain(rcb *clients.RemoteClientBundle, dt matcher.
 				"question": qn,
 				"domain":   qn,
 			}).Debug("Matched")
-			log.Debugf("Finally use %s DNS", rcb.Name)
 			return true
 		}
-
 		log.Debugf("Domain %s match fail", rcb.Name)
 	} else {
 		log.Debug("Domain matcher is nil, not checking")

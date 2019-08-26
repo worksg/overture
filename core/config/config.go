@@ -244,6 +244,10 @@ func initDomainMatcher(file string, name string) (m matcher.Matcher) {
 }
 
 func getIPNetworkList(file string) []*net.IPNet {
+	if file == "" {
+		return nil
+	}
+
 	ipNetList := make([]*net.IPNet, 0)
 
 	f, err := os.Open(file)
