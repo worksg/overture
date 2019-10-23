@@ -127,7 +127,7 @@ func (d *Dispatcher) selectByIPNetwork(PrimaryClientBundle, AlternativeClientBun
 		return AlternativeClientBundle
 	}
 
-	if primaryResponse.Answer == nil {
+	if primaryResponse.Answer == nil { // TODO: NEED TO FIX https://github.com/shawn1m/overture/issues/181
 		if d.WhenPrimaryDNSAnswerNoneUse == "AlternativeDNS" {
 			log.Debug("Primary DNS response has no answer section but exist, finally use AlternativeDNS")
 			return AlternativeClientBundle

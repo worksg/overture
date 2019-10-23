@@ -75,7 +75,7 @@ func (c *RemoteClient) Exchange(isLog bool) *dns.Msg {
 
 	var conn net.Conn
 	if c.dnsUpstream.SOCKS5Address != "" {
-		s, err := proxy.SOCKS5(c.dnsUpstream.Protocol, c.dnsUpstream.SOCKS5Address, nil, proxy.Direct)
+		s, err := proxy.SOCKS5(c.dnsUpstream.Protocol, c.dnsUpstream.SOCKS5Address, nil, proxy.Direct) // TODO: Note tcp only
 		if err != nil {
 			log.Warnf("Failed to connect to SOCKS5 proxy: %s", err)
 			return nil
@@ -112,20 +112,15 @@ func (c *RemoteClient) Exchange(isLog bool) *dns.Msg {
 		}
 	}
 
-	dnsTimeout := time.Duration(c.dnsUpstream.Timeout) * time.Second / 3
+	dnsTimeout := time.Duration(c.dnsUpstream.Timeout) * time.Second
 
 	conn.SetDeadline(time.Now().Add(dnsTimeout))
-	conn.SetReadDeadline(time.Now().Add(dnsTimeout))
-	conn.SetWriteDeadline(time.Now().Add(dnsTimeout))
 
 	dc := &dns.Conn{Conn: conn}
 	defer dc.Close()
 
-	if c.ednsClientSubnetIP != "" {
-		if opt := c.questionMessage.IsEdns0(); opt != nil && opt.UDPSize() >= dns.MinMsgSize {
-			//log.Debugf("Modify UDPSize upstream %s: %d => %d", c.dnsUpstream.Name, dc.UDPSize, opt.UDPSize())
-			dc.UDPSize = opt.UDPSize()
-		}
+	if conn.LocalAddr().Network() == "udp" { // TODO: Check reply Truncated
+		dc.UDPSize = dns.MaxMsgSize
 	}
 
 	err := dc.WriteMsg(c.questionMessage)
@@ -133,18 +128,19 @@ func (c *RemoteClient) Exchange(isLog bool) *dns.Msg {
 		log.Warnf("%s Fail: Send question message failed", c.dnsUpstream.Name)
 		return nil
 	}
-	temp, err := dc.ReadMsg()
+	reply, err := dc.ReadMsg()
 
 	if err != nil {
-		log.Debugf("%s Fail: %s", c.dnsUpstream.Name, err)
-		return nil
-	}
-	if temp == nil {
-		log.Debugf("%s Fail: Response message returned nil, maybe timeout? Please check your query or DNS configuration")
+		log.Warnf("%s Fail: Read response message failed, %s", c.dnsUpstream.Name, err)
 		return nil
 	}
 
-	c.responseMessage = temp
+	if c.questionMessage.Id != reply.Id {
+		log.Warnf("%s Fail: %s", c.dnsUpstream.Name, dns.ErrId.Error())
+		return nil
+	}
+
+	c.responseMessage = reply
 
 	if isLog {
 		c.logAnswer("")
